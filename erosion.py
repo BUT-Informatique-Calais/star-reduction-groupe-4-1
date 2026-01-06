@@ -72,7 +72,7 @@ else:
     data_gray: NDArray = data
 
 mean, median, std = sigma_clipped_stats(data_gray, sigma=3.0)
-daofind: DAOStarFinder = DAOStarFinder(fwhm=2.0, threshold=0.5 * std)
+daofind: DAOStarFinder = DAOStarFinder(fwhm=3.0, threshold=1.0 * std)
 sources = daofind(data_gray - median)
 
 if sources is not None:

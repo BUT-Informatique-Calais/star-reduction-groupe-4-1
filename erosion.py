@@ -64,24 +64,51 @@ hdul.close()
 mean: float
 median: float
 std: float
-mean, median, std = sigma_clipped_stats(data, sigma=3.0)
-daofind: DAOStarFinder = DAOStarFinder(fwhm=5.0, threshold=std)
-sources = daofind(data - median)
 
-for col in sources.colnames:
-    if col not in ('id', 'npix'):
-        sources[col].info.format = '%.2f'
+# Utiliser les données en niveaux de gris pour la détection
+if data.ndim == 3:
+    data_gray: NDArray = np.mean(data, axis=2)
+else:
+    data_gray: NDArray = data
 
-mask: NDArray[np.uint8] = np.zeros(data.shape, dtype=np.uint8)
+mean, median, std = sigma_clipped_stats(data_gray, sigma=3.0)
+daofind: DAOStarFinder = DAOStarFinder(fwhm=2.0, threshold=0.5 * std)
+sources = daofind(data_gray - median)
 
-# Créer les apertures circulaires pour marquer les étoiles
-positions: NDArray = np.transpose((sources['xcentroid'], sources['ycentroid']))
-apertures: CircularAperture = CircularAperture(positions, r=4.0)
-
-# Remplir le masque avec les apertures
-star_masks: list = apertures.to_mask(method='center')
-for star_mask in star_masks:
-    if star_mask is not None:
-        mask += (star_mask.to_image(data.shape) * 255).astype(np.uint8)
-
-cv.imwrite('./results/star_mask.png', mask)
+if sources is not None:
+    print(f"{len(sources)} étoiles détectées")
+    
+    # Créer un masque pour les étoiles avec des rayons adaptés à leur taille
+    mask: NDArray[np.uint8] = np.zeros(data_gray.shape, dtype=np.uint8)
+    
+    # Marquer chaque étoile avec un rayon adapté à sa taille (basé sur sharpness et flux)
+    for source in sources:
+        x, y = int(source['xcentroid']), int(source['ycentroid'])
+        # Rayon adapté à la taille de l'étoile (entre 4 et 12 pixels)
+        radius = int(max(4, min(12, source['sharpness'] * 8 + source['peak'] / 2000)))
+        cv.circle(mask, (x, y), radius, 255, -1)
+    
+    print(f"Pixels dans le masque: {np.count_nonzero(mask)}")
+    cv.imwrite('./results/star_mask.png', mask)
+    
+    # Utiliser l'inpainting pour créer une image de fond
+    background: NDArray[np.uint8] = cv.inpaint(image, mask, 3, cv.INPAINT_TELEA)
+    
+    # Adoucir les bords du masque avec un flou gaussien
+    mask_float: NDArray[np.float32] = mask.astype(np.float32) / 255.0
+    mask_blurred: NDArray[np.float32] = cv.GaussianBlur(mask_float, (11, 11), 3.0)
+    
+    # Appliquer la formule d'interpolation : I_final = (M × I_eroded) + ((1-M) × I_original)
+    if data.ndim == 3:
+        # Pour les images couleur, appliquer sur chaque canal
+        result: NDArray[np.uint8] = np.zeros_like(image)
+        for i in range(3):
+            result[:, :, i] = ((1 - mask_blurred) * image[:, :, i] + 
+                              mask_blurred * background[:, :, i]).astype(np.uint8)
+    else:
+        # Pour les images monochromes
+        result: NDArray[np.uint8] = ((1 - mask_blurred) * image + 
+                                     mask_blurred * background).astype(np.uint8)
+    
+    # Sauvegarder l'image sans étoiles
+    cv.imwrite('./results/stars_removed.png', result, [cv.IMWRITE_PNG_COMPRESSION, 9])

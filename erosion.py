@@ -5,10 +5,7 @@ import numpy as np
 from astropy.stats import sigma_clipped_stats
 from photutils.detection import DAOStarFinder
 from numpy.typing import NDArray
-from astropy.table import Table
 from cv2.typing import MatLike
-
-from photutils.aperture import CircularAperture
 
 # Open and read the FITS file
 fits_file: str = './examples/HorseHead.fits'
@@ -103,12 +100,12 @@ if sources is not None:
         # Pour les images couleur, appliquer sur chaque canal
         result: NDArray[np.uint8] = np.zeros_like(image)
         for i in range(3):
-            result[:, :, i] = ((1 - mask_blurred) * image[:, :, i] + 
-                              mask_blurred * background[:, :, i]).astype(np.uint8)
+            result[:, :, i] = (mask_blurred * background[:, :, i] 
+                               + (1 - mask_blurred) * image[:, :, i]).astype(np.uint8)
     else:
         # Pour les images monochromes
-        result: NDArray[np.uint8] = ((1 - mask_blurred) * image + 
-                                     mask_blurred * background).astype(np.uint8)
+        result: NDArray[np.uint8] = ((1 - mask_blurred) * image 
+                                     + mask_blurred * background).astype(np.uint8)
     
     # Sauvegarder l'image sans étoiles
-    cv.imwrite('./results/stars_removed.png', result, [cv.IMWRITE_PNG_COMPRESSION, 9])
+    cv.imwrite('./results/stars_removed.png', result)

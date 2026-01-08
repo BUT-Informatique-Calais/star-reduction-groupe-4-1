@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -11,7 +12,7 @@ from astropy.stats import sigma_clipped_stats
 from photutils.detection import DAOStarFinder
 import cv2 as cv
 from numpy.typing import NDArray
-from __future__ import annotations
+
 
 # Thread de traitement d'image - empêche le blocage de l'interface utilisateur
 class ImageProcessingThread(QThread):
